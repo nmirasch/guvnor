@@ -16,7 +16,7 @@
 
 package org.guvnor.inbox.client.editor;
 
-import java.util.Date;
+import java.util.*;
 
 import com.github.gwtbootstrap.client.ui.Button;
 import com.github.gwtbootstrap.client.ui.constants.IconType;
@@ -27,6 +27,8 @@ import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.i18n.client.DateTimeFormat;
 import com.google.gwt.user.cellview.client.Column;
+import com.google.gwt.user.cellview.client.ColumnSortEvent;
+import com.google.gwt.user.cellview.client.ColumnSortList;
 import com.google.gwt.user.cellview.client.TextColumn;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.view.client.AsyncDataProvider;
@@ -87,6 +89,8 @@ public class InboxViewImpl extends PagedTable<InboxPageRow> implements InboxView
                 return row.getNote();
             }
         };
+        noteColumn.setSortable( true );
+        noteColumn.setDataStoreName( "name" );
         addColumn( noteColumn,
                    InboxConstants.INSTANCE.name() );
 
@@ -95,28 +99,86 @@ public class InboxViewImpl extends PagedTable<InboxPageRow> implements InboxView
                 return row.getTimestamp();
             }
         };
+        dateColumn.setSortable( true );
+        dateColumn.setDataStoreName( "timestamp" );
         addColumn( dateColumn,
                    InboxConstants.INSTANCE.createdDate() );
 
-        setDataProvider( new AsyncDataProvider<InboxPageRow>() {
+        final AsyncDataProvider<InboxPageRow> dataProvider = new AsyncDataProvider<InboxPageRow>() {
             protected void onRangeChanged( HasData<InboxPageRow> display ) {
-                InboxPageRequest request = new InboxPageRequest();
+                ColumnSortList columnSortList = dataGrid.getColumnSortList();
+
+                final InboxPageRequest request = new InboxPageRequest();
                 request.setInboxName( inboxName );
                 request.setStartRowIndex( dataGrid.getPageStart() );
                 request.setPageSize( PAGE_SIZE );
 
+                if ( columnSortList.size() > 0 ) {
+                    request.setSortColumnName( columnSortList.get( 0 ).getColumn().getDataStoreName() );
+                    request.setSortAscending( columnSortList.get( 0 ).isAscending() );
+                } else {
+                    request.setSortColumnName( "" );
+                    request.setSortAscending( true );
+                }
+
                 inboxService.call( new RemoteCallback<PageResponse<InboxPageRow>>() {
                     @Override
                     public void callback( final PageResponse<InboxPageRow> response ) {
+                        if ( request.getSortColumnName().equals( "name" ) ) {
+                            Collections.sort( response.getPageRowList(), new Comparator<InboxPageRow>() {
+                                public int compare( InboxPageRow o1, InboxPageRow o2 ) {
+                                    if ( o1 == o2 ) {
+                                        return 0;
+                                    }
+
+                                    // Compare the name columns.
+                                    int diff = -1;
+                                    if ( o1 != null ) {
+                                        diff = ( o2 != null ) ? o1.getNote().compareTo( o2.getNote() ) : 1;
+                                    }
+                                    return request.isSortAscending() ? diff : -diff;
+                                }
+                            } );
+                        } else if ( request.getSortColumnName().equals( "timestamp" ) ) {
+                            Collections.sort( response.getPageRowList(), new Comparator<InboxPageRow>() {
+                                public int compare( InboxPageRow o1, InboxPageRow o2 ) {
+                                    if ( o1 == o2 ) {
+                                        return 0;
+                                    }
+
+                                    // Compare the name columns.
+                                    int diff = -1;
+                                    if ( o1 != null ) {
+                                        diff = ( o2 != null ) ? o1.getTimestamp().compareTo( o2.getTimestamp() ) : 1;
+                                    }
+                                    return request.isSortAscending() ? diff : -diff;
+                                }
+                            } );
+                        }
+
                         updateRowCount( response.getTotalRowSize(),
-                                        response.isTotalRowSizeExact() );
+                                response.isTotalRowSizeExact() );
                         updateRowData( response.getStartRowIndex(),
-                                       response.getPageRowList() );
+                                response.getPageRowList() );
                     }
                 } ).loadInbox( request );
 
+
             }
-        } );
+        };
+        ColumnSortEvent.AsyncHandler columnSortHandler = new ColumnSortEvent.AsyncHandler(dataGrid) {
+
+            @Override
+            public void onColumnSort(final ColumnSortEvent event) {
+                if(dataProvider.getDataDisplays().size()>0) {
+                    HasData<InboxPageRow> next = dataProvider.getDataDisplays().iterator().next();
+                    dataProvider.getDataDisplays().iterator().next().setVisibleRangeAndClearData( next.getVisibleRange(), true );
+                }
+            }
+        };
+        addColumnSortHandler(columnSortHandler);
+        setDataProvider( dataProvider );
+
 
         final Button refreshButton = new Button();
         refreshButton.setIcon( IconType.REFRESH );

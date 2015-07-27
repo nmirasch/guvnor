@@ -25,6 +25,8 @@ import org.uberfire.paging.PageRequest;
 public class InboxPageRequest extends PageRequest {
 
     private String inboxName;
+    private String sortColumnName;
+    private boolean sortAscending;
 
     // For GWT serialisation
     public InboxPageRequest() {
@@ -62,4 +64,19 @@ public class InboxPageRequest extends PageRequest {
         }*/
     }
 
+    public String getSortColumnName() {
+        return sortColumnName;
+    }
+
+    public void setSortColumnName( String sortColumnName ) {
+        this.sortColumnName = sortColumnName;
+    }
+
+    public boolean isSortAscending() {
+        return sortAscending;
+    }
+
+    public void setSortAscending( boolean sortAscending ) {
+        this.sortAscending = sortAscending;
+    }
 }
